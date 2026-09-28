@@ -6,24 +6,16 @@ import SwiftUI
 final class NotchModel {
     var isExpanded = false
     var notchSize = CGSize(width: 190, height: 32)
-    let store: UsageStore
+    /// Measured height of the panel content; drives the open shape.
+    var contentHeight: CGFloat = 200
 
     static let width: CGFloat = 500
-    static let maxHeight: CGFloat = 330
+    static let maxHeight: CGFloat = 360
+    static let topRadius: CGFloat = 14
+    static let bottomRadius: CGFloat = 26
 
-    init(store: UsageStore) {
-        self.store = store
-    }
-
-    /// Grows with the tallest card: rows of usage plus an error line.
     var expandedSize: CGSize {
-        let cards = store.visible.map { _, status -> CGFloat in
-            let rows = CGFloat(max(status.snapshot?.windows.count ?? 2, 1))
-            let error: CGFloat = if case .failed = status { 24 } else { 0 }
-            return 12 + 20 + 10 + rows * 36 + (rows - 1) * 10 + error + 12
-        }
-        let card = cards.max() ?? 90
-        return CGSize(width: Self.width, height: min(Self.maxHeight, notchSize.height + 10 + card + 14))
+        CGSize(width: Self.width, height: min(Self.maxHeight, contentHeight))
     }
 }
 
@@ -42,7 +34,7 @@ final class NotchController {
 
     init(store: UsageStore) {
         self.store = store
-        self.model = NotchModel(store: store)
+        self.model = NotchModel()
     }
 
     func start() {

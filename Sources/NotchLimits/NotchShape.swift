@@ -1,3 +1,4 @@
+import NotchLimitsCore
 import SwiftUI
 
 /// The notch silhouette: concave "shoulders" at the top that melt into the
@@ -52,5 +53,18 @@ struct Starburst: Shape {
             p.closeSubpath()
         }
         return p
+    }
+}
+
+/// OpenAI blossom, drawn from path data and scaled to fit.
+struct OpenAIMark: Shape {
+    private static let icon = SVGPath.cgPath(BrandIcons.openAI)
+
+    func path(in rect: CGRect) -> Path {
+        let side = min(rect.width, rect.height)
+        let scale = side / 24
+        var transform = CGAffineTransform(translationX: rect.midX - side / 2, y: rect.midY - side / 2)
+            .scaledBy(x: scale, y: scale)
+        return Path(Self.icon.copy(using: &transform) ?? Self.icon)
     }
 }

@@ -13,7 +13,36 @@ public enum ClaudeUsageParser {
         guard let root = try JSONSerialization.jsonObject(with: data) as? [String: Any] else {
             throw UsageError.badResponse
         }
-        let windows = knownWindows.compactMap { key, label -> UsageWindow? in
+        var windows = limitsWindows(root["limits"] as? [[String: Any]] ?? [])
+        if windows.isEmpty { windows = legacyWindows(root) }
+        guard !windows.isEmpty else { throw UsageError.badResponse }
+        return ProviderSnapshot(kind: .claude, plan: plan, windows: windows, fetchedAt: now)
+    }
+
+    /// The `limits` array: the only place per-model weekly caps (e.g. Fable) appear.
+    static func limitsWindows(_ limits: [[String: Any]]) -> [UsageWindow] {
+        limits.compactMap { limit in
+            guard let kind = limit["kind"] as? String,
+                  let percent = (limit["percent"] as? NSNumber)?.doubleValue else { return nil }
+            let scope = limit["scope"] as? [String: Any]
+            let model = (scope?["model"] as? [String: Any])?["display_name"] as? String
+            let surface = scope?["surface"] as? String
+            let label: String = switch kind {
+            case "session": "5h"
+            case "weekly_all": "Week"
+            case "weekly_scoped": "\(model ?? surface ?? "Scoped") week"
+            default: kind.replacingOccurrences(of: "_", with: " ").capitalized
+            }
+            return UsageWindow(
+                label: label,
+                usedPercent: percent,
+                resetsAt: (limit["resets_at"] as? String).flatMap(DateParsing.iso8601)
+            )
+        }
+    }
+
+    static func legacyWindows(_ root: [String: Any]) -> [UsageWindow] {
+        knownWindows.compactMap { key, label -> UsageWindow? in
             guard let w = root[key] as? [String: Any],
                   let used = (w["utilization"] as? NSNumber)?.doubleValue else { return nil }
             return UsageWindow(
@@ -22,8 +51,6 @@ public enum ClaudeUsageParser {
                 resetsAt: (w["resets_at"] as? String).flatMap(DateParsing.iso8601)
             )
         }
-        guard !windows.isEmpty else { throw UsageError.badResponse }
-        return ProviderSnapshot(kind: .claude, plan: plan, windows: windows, fetchedAt: now)
     }
 
     /// `subscriptionType` + `rateLimitTier` from the Keychain item → "Max 20x".

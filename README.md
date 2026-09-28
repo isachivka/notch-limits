@@ -6,7 +6,7 @@ Your Claude Code and Codex subscription limits, hidden in the MacBook notch. Hov
 
 ## What it shows
 
-- **Claude Code**: the 5-hour window, the weekly window and, when your plan has them, the Opus/Sonnet weekly windows. The plan (Pro, Max 5x, Max 20x) comes from the local credentials.
+- **Claude Code**: the 5-hour session, the weekly limit and every per-model weekly cap your plan has (e.g. **Fable week**). The plan (Pro, Max 5x, Max 20x) comes from the local credentials.
 - **Codex**: the windows the ChatGPT backend reports (5h and weekly), plus the plan.
 
 A provider you are not signed in to on this Mac is simply not shown. Data refreshes every minute and every time you open the panel. If a request fails, the last known numbers stay on screen, dimmed, with the reason.

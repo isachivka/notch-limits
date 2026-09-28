@@ -25,31 +25,42 @@ struct NotchView: View {
     let model: NotchModel
     let store: UsageStore
 
-    private let topRadius: CGFloat = 8
+    private let collapsedTopRadius: CGFloat = 8
+    /// Same gap from the black edge on the left, right and bottom.
+    static let inset: CGFloat = 14
 
     var body: some View {
         let expanded = model.isExpanded
         let size = expanded
             ? model.expandedSize
-            : CGSize(width: model.notchSize.width + topRadius * 2, height: model.notchSize.height)
+            : CGSize(width: model.notchSize.width + collapsedTopRadius * 2, height: model.notchSize.height)
+        let shape = NotchShape(topRadius: expanded ? NotchModel.topRadius : collapsedTopRadius,
+                               bottomRadius: expanded ? NotchModel.bottomRadius : 10)
 
         ZStack(alignment: .top) {
-            NotchShape(topRadius: expanded ? 14 : topRadius, bottomRadius: expanded ? 26 : 10)
+            shape
                 .fill(.black)
+                .frame(width: size.width, height: size.height)
                 .shadow(color: .black.opacity(expanded ? 0.55 : 0), radius: 18, y: 8)
 
-            if expanded {
-                PanelContent(model: model, store: store)
-                    .padding(.horizontal, 14)
-                    .transition(.asymmetric(
-                        insertion: .opacity.combined(with: .scale(scale: 0.9, anchor: .top))
-                            .animation(.spring(response: 0.4, dampingFraction: 0.8).delay(0.06)),
-                        removal: .opacity.animation(.easeOut(duration: 0.12))
-                    ))
-            }
+            // Always laid out at full width so its height can be measured
+            // before the first open; hidden and clipped while collapsed.
+            PanelContent(model: model, store: store)
+                .padding(.horizontal, NotchModel.topRadius + Self.inset)
+                .padding(.bottom, Self.inset)
+                .frame(width: NotchModel.width)
+                .fixedSize(horizontal: false, vertical: true)
+                .onGeometryChange(for: CGFloat.self, of: { $0.size.height }) { model.contentHeight = $0 }
+                .opacity(expanded ? 1 : 0)
+                .scaleEffect(expanded ? 1 : 0.92, anchor: .top)
+                .blur(radius: expanded ? 0 : 8)
+                .animation(expanded
+                    ? .spring(response: 0.4, dampingFraction: 0.8).delay(0.05)
+                    : .easeOut(duration: 0.12), value: expanded)
+                .frame(width: size.width, height: size.height, alignment: .top)
+                .clipShape(shape)
+                .allowsHitTesting(expanded)
         }
-        .frame(width: size.width, height: size.height)
-        .clipShape(NotchShape(topRadius: expanded ? 14 : topRadius, bottomRadius: expanded ? 26 : 10))
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         .environment(\.colorScheme, .dark)
         .contextMenu {
@@ -75,12 +86,12 @@ private struct PanelContent: View {
                 HStack(alignment: .top, spacing: 10) {
                     ForEach(items, id: \.0) { kind, status in
                         ProviderCard(kind: kind, status: status)
+                            .frame(maxHeight: .infinity, alignment: .top)
                     }
                 }
+                .fixedSize(horizontal: false, vertical: true)
             }
-            Spacer(minLength: 0)
         }
-        .padding(.bottom, 14)
     }
 
     /// Lives in the strips left and right of the physical notch.
@@ -95,7 +106,6 @@ private struct PanelContent: View {
                     .font(.system(size: 12, weight: .semibold, design: .rounded))
                     .foregroundStyle(.white.opacity(0.9))
             }
-            .padding(.leading, 12)
             Spacer(minLength: model.notchSize.width)
             TimelineView(.periodic(from: .now, by: 10)) { context in
                 HStack(spacing: 6) {
@@ -107,7 +117,6 @@ private struct PanelContent: View {
                     RefreshButton(spinning: store.isRefreshing) { store.refresh() }
                 }
             }
-            .padding(.trailing, 8)
         }
     }
 }
@@ -172,7 +181,7 @@ private struct ProviderCard: View {
             }
         }
         .padding(12)
-        .frame(maxWidth: .infinity, alignment: .leading)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .background(
             RoundedRectangle(cornerRadius: 16, style: .continuous)
                 .fill(LinearGradient(colors: [.white.opacity(0.075), .white.opacity(0.03)],
@@ -202,9 +211,7 @@ private struct ProviderGlyph: View {
             case .claude:
                 Starburst().fill(Palette.claude).padding(4)
             case .codex:
-                Image(systemName: "chevron.left.forwardslash.chevron.right")
-                    .font(.system(size: 9, weight: .heavy))
-                    .foregroundStyle(Palette.codex)
+                OpenAIMark().fill(.white).padding(3.5)
             }
         }
         .frame(width: 20, height: 20)
@@ -283,7 +290,8 @@ private struct EmptyState: View {
                 .font(.system(size: 12, weight: .medium, design: .rounded))
                 .foregroundStyle(.white.opacity(0.6))
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 20)
     }
 }
 
