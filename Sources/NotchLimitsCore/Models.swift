@@ -45,6 +45,8 @@ public enum FetchResult: Sendable {
     case notConfigured
     case ok(ProviderSnapshot)
     case failed(String)
+    /// HTTP 429; `retryAfter` from the Retry-After header when present.
+    case rateLimited(retryAfter: TimeInterval?)
 }
 
 /// What the UI shows for a provider. A failed fetch keeps the last good snapshot.
@@ -67,6 +69,8 @@ public enum ProviderStatus: Equatable, Sendable {
         case .notConfigured: .notConfigured
         case .ok(let s): .ok(s)
         case .failed(let message): .failed(message: message, last: snapshot)
+        // Throttling says nothing about the numbers: keep showing them.
+        case .rateLimited: snapshot == nil ? .failed(message: "Rate limited", last: nil) : self
         }
     }
 }
@@ -74,4 +78,5 @@ public enum ProviderStatus: Equatable, Sendable {
 public enum UsageError: Error, Equatable {
     case badResponse
     case http(Int)
+    case rateLimited(retryAfter: TimeInterval?)
 }

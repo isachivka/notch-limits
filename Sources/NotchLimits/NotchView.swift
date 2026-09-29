@@ -85,7 +85,7 @@ private struct PanelContent: View {
             } else {
                 HStack(alignment: .top, spacing: 10) {
                     ForEach(items, id: \.0) { kind, status in
-                        ProviderCard(kind: kind, status: status)
+                        ProviderCard(kind: kind, status: status, throttledUntil: store.throttledUntil[kind])
                             .frame(maxHeight: .infinity, alignment: .top)
                     }
                 }
@@ -145,6 +145,7 @@ private struct RefreshButton: View {
 private struct ProviderCard: View {
     let kind: ProviderKind
     let status: ProviderStatus
+    let throttledUntil: Date?
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
@@ -178,6 +179,17 @@ private struct ProviderCard: View {
                     .font(.system(size: 10, weight: .medium, design: .rounded))
                     .foregroundStyle(Palette.warm)
                     .lineLimit(1)
+            }
+            if let until = throttledUntil, status.snapshot != nil {
+                TimelineView(.periodic(from: .now, by: 20)) { context in
+                    if until > context.date {
+                        Label("Rate limited · retry in \(ResetFormatter.string(until: until, now: context.date))",
+                              systemImage: "hourglass")
+                            .font(.system(size: 10, weight: .medium, design: .rounded))
+                            .foregroundStyle(.white.opacity(0.35))
+                            .lineLimit(1)
+                    }
+                }
             }
         }
         .padding(12)

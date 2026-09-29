@@ -24,6 +24,8 @@ public enum ClaudeClient {
         do {
             let data = try await HTTP.get(request)
             return .ok(try ClaudeUsageParser.parse(data, plan: creds.plan))
+        } catch UsageError.rateLimited(let after) {
+            return .rateLimited(retryAfter: after)
         } catch {
             return .failed(HTTP.describe(error, cli: "claude"))
         }
@@ -68,6 +70,8 @@ public enum CodexClient {
         do {
             let data = try await HTTP.get(request)
             return .ok(try CodexUsageParser.parse(data))
+        } catch UsageError.rateLimited(let after) {
+            return .rateLimited(retryAfter: after)
         } catch {
             return .failed(HTTP.describe(error, cli: "codex"))
         }
@@ -78,6 +82,10 @@ enum HTTP {
     static func get(_ request: URLRequest) async throws -> Data {
         let (data, response) = try await URLSession.shared.data(for: request)
         guard let http = response as? HTTPURLResponse else { throw UsageError.badResponse }
+        if http.statusCode == 429 {
+            let after = http.value(forHTTPHeaderField: "Retry-After").flatMap(TimeInterval.init)
+            throw UsageError.rateLimited(retryAfter: after)
+        }
         guard (200..<300).contains(http.statusCode) else { throw UsageError.http(http.statusCode) }
         return data
     }
@@ -85,7 +93,6 @@ enum HTTP {
     static func describe(_ error: Error, cli: String) -> String {
         switch error {
         case UsageError.http(401), UsageError.http(403): "Signed out — run \(cli) once"
-        case UsageError.http(429): "Rate limited, retrying"
         case UsageError.http(let code): "HTTP \(code)"
         case UsageError.badResponse: "Unexpected response"
         default: "Offline"

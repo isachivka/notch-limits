@@ -104,4 +104,11 @@ final class FormattingTests: XCTestCase {
         XCTAssertEqual(status, .failed(message: "Offline", last: snap))
         XCTAssertEqual(status.applying(.ok(snap)), .ok(snap))
     }
+
+    func testRateLimitKeepsNumbersVisible() {
+        let snap = ProviderSnapshot(kind: .claude, plan: nil, windows: [], fetchedAt: now)
+        XCTAssertEqual(ProviderStatus.ok(snap).applying(.rateLimited(retryAfter: 60)), .ok(snap))
+        XCTAssertEqual(ProviderStatus.loading.applying(.rateLimited(retryAfter: nil)),
+                       .failed(message: "Rate limited", last: nil))
+    }
 }
