@@ -107,8 +107,8 @@ final class FormattingTests: XCTestCase {
 
     func testRateLimitKeepsNumbersVisible() {
         let snap = ProviderSnapshot(kind: .claude, plan: nil, windows: [], fetchedAt: now)
-        XCTAssertEqual(ProviderStatus.ok(snap).applying(.rateLimited(retryAfter: 60)), .ok(snap))
-        XCTAssertEqual(ProviderStatus.loading.applying(.rateLimited(retryAfter: nil)),
+        XCTAssertEqual(ProviderStatus.ok(snap).applying(.unavailable(reason: "Service unavailable", retryAfter: 60)), .ok(snap))
+        XCTAssertEqual(ProviderStatus.loading.applying(.unavailable(reason: "Rate limited", retryAfter: nil)),
                        .failed(message: "Rate limited", last: nil))
     }
 }

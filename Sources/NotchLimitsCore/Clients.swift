@@ -24,10 +24,8 @@ public enum ClaudeClient {
         do {
             let data = try await HTTP.get(request)
             return .ok(try ClaudeUsageParser.parse(data, plan: creds.plan))
-        } catch UsageError.rateLimited(let after) {
-            return .rateLimited(retryAfter: after)
         } catch {
-            return .failed(HTTP.describe(error, cli: "claude"))
+            return HTTP.result(for: error, cli: "claude")
         }
     }
 
@@ -70,10 +68,8 @@ public enum CodexClient {
         do {
             let data = try await HTTP.get(request)
             return .ok(try CodexUsageParser.parse(data))
-        } catch UsageError.rateLimited(let after) {
-            return .rateLimited(retryAfter: after)
         } catch {
-            return .failed(HTTP.describe(error, cli: "codex"))
+            return HTTP.result(for: error, cli: "codex")
         }
     }
 }
@@ -82,20 +78,22 @@ enum HTTP {
     static func get(_ request: URLRequest) async throws -> Data {
         let (data, response) = try await URLSession.shared.data(for: request)
         guard let http = response as? HTTPURLResponse else { throw UsageError.badResponse }
-        if http.statusCode == 429 {
-            let after = http.value(forHTTPHeaderField: "Retry-After").flatMap(TimeInterval.init)
-            throw UsageError.rateLimited(retryAfter: after)
+        let retryAfter = http.value(forHTTPHeaderField: "Retry-After").flatMap(TimeInterval.init)
+        switch http.statusCode {
+        case 200..<300: return data
+        case 429: throw UsageError.transient(reason: "Rate limited", retryAfter: retryAfter)
+        case 500..<600: throw UsageError.transient(reason: "Service unavailable", retryAfter: retryAfter)
+        default: throw UsageError.http(http.statusCode)
         }
-        guard (200..<300).contains(http.statusCode) else { throw UsageError.http(http.statusCode) }
-        return data
     }
 
-    static func describe(_ error: Error, cli: String) -> String {
+    static func result(for error: Error, cli: String) -> FetchResult {
         switch error {
-        case UsageError.http(401), UsageError.http(403): "Signed out — run \(cli) once"
-        case UsageError.http(let code): "HTTP \(code)"
-        case UsageError.badResponse: "Unexpected response"
-        default: "Offline"
+        case UsageError.transient(let reason, let after): .unavailable(reason: reason, retryAfter: after)
+        case is URLError: .unavailable(reason: "Offline", retryAfter: nil)
+        case UsageError.http(401), UsageError.http(403): .failed("Signed out — run \(cli) once")
+        case UsageError.http(let code): .failed("HTTP \(code)")
+        default: .failed("Unexpected response")
         }
     }
 }

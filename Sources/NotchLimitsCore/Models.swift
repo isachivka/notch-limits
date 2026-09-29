@@ -1,6 +1,6 @@
 import Foundation
 
-public enum ProviderKind: String, Sendable, CaseIterable {
+public enum ProviderKind: String, Sendable, CaseIterable, Codable {
     case claude, codex
 
     public var displayName: String {
@@ -12,7 +12,7 @@ public enum ProviderKind: String, Sendable, CaseIterable {
 }
 
 /// One rate-limit window, e.g. "5h" or "Week".
-public struct UsageWindow: Equatable, Sendable, Identifiable {
+public struct UsageWindow: Equatable, Sendable, Identifiable, Codable {
     public var id: String { label }
     public let label: String
     /// 0...100
@@ -26,7 +26,7 @@ public struct UsageWindow: Equatable, Sendable, Identifiable {
     }
 }
 
-public struct ProviderSnapshot: Equatable, Sendable {
+public struct ProviderSnapshot: Equatable, Sendable, Codable {
     public let kind: ProviderKind
     public let plan: String?
     public let windows: [UsageWindow]
@@ -45,8 +45,8 @@ public enum FetchResult: Sendable {
     case notConfigured
     case ok(ProviderSnapshot)
     case failed(String)
-    /// HTTP 429; `retryAfter` from the Retry-After header when present.
-    case rateLimited(retryAfter: TimeInterval?)
+    /// Worth retrying later (429, 5xx, offline); says nothing about the numbers.
+    case unavailable(reason: String, retryAfter: TimeInterval?)
 }
 
 /// What the UI shows for a provider. A failed fetch keeps the last good snapshot.
@@ -69,8 +69,8 @@ public enum ProviderStatus: Equatable, Sendable {
         case .notConfigured: .notConfigured
         case .ok(let s): .ok(s)
         case .failed(let message): .failed(message: message, last: snapshot)
-        // Throttling says nothing about the numbers: keep showing them.
-        case .rateLimited: snapshot == nil ? .failed(message: "Rate limited", last: nil) : self
+        // A transient outage says nothing about the numbers: keep showing them.
+        case .unavailable(let reason, _): snapshot == nil ? .failed(message: reason, last: nil) : self
         }
     }
 }
@@ -78,5 +78,5 @@ public enum ProviderStatus: Equatable, Sendable {
 public enum UsageError: Error, Equatable {
     case badResponse
     case http(Int)
-    case rateLimited(retryAfter: TimeInterval?)
+    case transient(reason: String, retryAfter: TimeInterval?)
 }
